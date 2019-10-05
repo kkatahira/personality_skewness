@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Illustration of how Gerlach’s method works for data with cluster structure</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Illustration of how Gerlach’s method works for data with cluster structure</h1>
+
+</div>
+
+
+<p>These R scripts perfom simulations (“Case with three clusters”) in Katahira et al. (Distribution of personality: types or skew?; Commentary: A robust data-driven approach identifies four personality types across four large data sets).</p>
+<div id="preparation" class="section level2">
+<h2>Preparation</h2>
+<p>Install the required package (if not yet) by the following commands.</p>
+<pre class="r"><code>install.packages(&quot;tidyverse&quot;)
+install.packages(&quot;sn&quot;)
+install.packages(&quot;reticulate&quot;)
+install.packages(&quot;mixtools&quot;)
+install.packages(&quot;ks&quot;)
+install.packages(&quot;fields&quot;)
+install.packages(&quot;mvtnorm&quot;)</code></pre>
+<p>Also, please install Python to use scikit-learn library via reticulate library. (We recommend Anaconda dibribution <a href="https://www.anaconda.com/" class="uri">https://www.anaconda.com/</a> , which contains scikit-learn library.)</p>
+<p>ref: <a href="https://rstudio.github.io/reticulate/" class="uri">https://rstudio.github.io/reticulate/</a></p>
+</div>
+<div id="load-library" class="section level2">
+<h2>Load library</h2>
+<pre class="r"><code>library(tidyverse)
+library(reticulate)
+library(sn)
+library(mixtools) 
+library(ks)     # for kernel density estimation
+library(fields) # for image.plot
+library(mvtnorm)</code></pre>
+</div>
+<div id="case-with-three-clusters" class="section level1">
+<h1>Case with three clusters</h1>
+<div id="synthesize-data" class="section level2">
+<h2>Synthesize data</h2>
+<p>Samples are drawn from GMM with three components.</p>
+<pre class="r"><code>set.seed(1)
+
+n.sample &lt;- 100000  # number of samples 
+
+# true parameters of GMM
+true_means &lt;- list(c(0,2), 
+                   c(-1.5,-0.5), 
+                   c(1.5,-0.5)
+                   )
+true_sigmas &lt;- list(diag(2)*0.5,
+                    diag(2)*0.5,
+                    diag(2)*0.5
+                    )
+true_pi &lt;- c(0.4,0.3,0.3)
+
+dat &lt;- matrix(0,nrow = n.sample, ncol = 2) 
+for (idx in 1:n.sample) {
+  idxk &lt;- which.max(rmultinom(1,1,true_pi))
+  dat[idx,] &lt;- rmvnorm(n = 1,
+                      mean = true_means[[idxk]],
+                      sigma = true_sigmas[[idxk]]  )
+}
+
+df_data &lt;- data.frame(scale(dat))</code></pre>
+<p>Plot samples and marginals distribution.</p>
+<pre class="r"><code>nplot &lt;- 5000 # number of samples to plot
+
+par(pty = &quot;s&quot;)
+plot(c(-5,6),c(-5,6),type=&quot;n&quot;,ann=F)
+points(df_data$X1[1:nplot],
+       df_data$X2[1:nplot],
+       pch=&quot;.&quot;,cex = 2)
+
+d1 &lt;- density(df_data$X1,from = -4, to = 3)
+d2 &lt;- density(df_data$X1,from = -4, to = 3)
+lines(d1$x, d1$y*3+4,
+      xlim=c(-6,6), ylim=c(0,0.3),lwd = 2)
+lines(d2$y*3+4, d2$x,
+      xlim=c(-6,6), ylim=c(0,0.3),lwd = 2)</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>Plot shuffuled data.</p>
+<pre class="r"><code>N &lt;- n.sample
+xdim &lt;- ncol(df_data)
+x.shuffeled &lt;- matrix(0,N,xdim)
+
+for (idx in 1:xdim)
+  x.shuffeled[,idx] &lt;- df_data[sample(N),idx]
+
+par(pty = &quot;s&quot;)
+plot(c(-5,6),c(-5,6),type=&quot;n&quot;,ann=F) 
+points(x.shuffeled[1:nplot,1],
+       x.shuffeled[1:nplot,2],
+       pch=&quot;.&quot;,cex = 2)
+
+d1 &lt;- density(x.shuffeled[,1],from = -4, to = 3)
+d2 &lt;- density(x.shuffeled[,2],from = -4, to = 3)
+lines(d1$x, d1$y*3+4, 
+      xlim=c(-6,6), ylim=c(0,0.3),lwd = 2)
+lines(d2$y*3+4, d2$x, 
+      xlim=c(-6,6), ylim=c(0,0.3),lwd = 2)</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+</div>
+<div id="fitting-gmms" class="section level2">
+<h2>Fitting GMMs</h2>
+<p>Following Gerlach et al., we choose initial parameters of GMMs from the results of K-means. If you select “random” initialization, the estimates will be different, suggesting that the GMM estimation for data of this kind is not robust.</p>
+<pre class="r"><code>sk &lt;- reticulate::import(module = &quot;sklearn&quot;)
+
+klist &lt;- 1:20 # number of components
+n.rep &lt;- 10   # number of runs from different intialization
+
+biclog &lt;- numeric(length(klist)) # to store BIC
+gmm_list &lt;- list()               # to store GMM
+
+for (idxk in klist){
+  K &lt;- klist[idxk]
+  ll.min &lt;- -Inf
+  
+  cat(&quot;\nfitting GMM... K =&quot;, K)
+
+  for (idxrun in 1:n.rep) {
+    cat(&quot;*&quot;)
+
+    initpar &lt;- &quot;kmeans&quot;
+    
+    ## uncomment if you want to include random intialization
+    # if (idxrun &lt; n.rep*0.5)
+    #   initpar &lt;- &quot;kmeans&quot;
+    # else 
+    #   initpar &lt;- &quot;random&quot;
+    
+    sk_gmm &lt;- sk$mixture$GaussianMixture
+    gmm &lt;- sk_gmm(as.integer(K),
+                  n_init = 1L,
+                  max_iter = 200L, 
+                  init_params = initpar) 
+    gmm$fit(df_data)
+    
+    ll &lt;- gmm$lower_bound_
+    
+    if (ll &gt; ll.min) {
+      ll.min &lt;- ll
+      cluster.center &lt;- data.frame(gmm$means_)
+      names(cluster.center) &lt;- names(df_data)
+      biclog[idxk] &lt;- gmm$bic(df_data)
+      gmm_list[[idxk]] &lt;- gmm
+    }
+  }
+}</code></pre>
+<pre><code>## 
+## fitting GMM... K = 1**********
+## fitting GMM... K = 2**********
+## fitting GMM... K = 3**********
+## fitting GMM... K = 4**********
+## fitting GMM... K = 5**********
+## fitting GMM... K = 6**********
+## fitting GMM... K = 7**********
+## fitting GMM... K = 8**********
+## fitting GMM... K = 9**********
+## fitting GMM... K = 10**********
+## fitting GMM... K = 11**********
+## fitting GMM... K = 12**********
+## fitting GMM... K = 13**********
+## fitting GMM... K = 14**********
+## fitting GMM... K = 15**********
+## fitting GMM... K = 16**********
+## fitting GMM... K = 17**********
+## fitting GMM... K = 18**********
+## fitting GMM... K = 19**********
+## fitting GMM... K = 20**********</code></pre>
+<div id="plot-the-locations-of-gaussian-components" class="section level3">
+<h3>Plot the locations of Gaussian components</h3>
+<p>Define a function for plotting cluster centers.</p>
+<pre class="r"><code>plot.cluster.center &lt;- function(cluster.center) {
+  
+  n.cluster &lt;- nrow(cluster.center)
+  for (idxc in 1:n.cluster) {
+    points(x = cluster.center[idxc,1],
+           y = cluster.center[idxc,2],
+           pch = 4, cex = 1.5, col=&quot;red&quot;, lwd=2)
+  }
+}</code></pre>
+<p>Scatter plot of data with ellipses of Gaussian components.</p>
+<pre class="r"><code>par(mfrow=c(3,3), pty = &quot;s&quot;,
+    mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0))
+
+for (idxk in 1:8) {
+  plot(df_data$X1[1:nplot],
+       df_data$X2[1:nplot], &quot;p&quot;, 
+       pch = &quot;.&quot;, 
+       xlab=&quot;Dimension 1&quot;, 
+       ylab=&quot;Dimension 2&quot;, 
+       main=paste(&quot;K:&quot;, idxk))
+  
+  for (idxc in 1:idxk) {
+    mixtools::ellipse(mu=gmm_list[[idxk]]$means_[idxc,], 
+            sigma=gmm_list[[idxk]]$covariances_[idxc,,],
+            alpha = 1-.6827,  # 1 sigma  
+            npoints = 250, col=&quot;red&quot;) 
+  }
+  plot.cluster.center(gmm_list[[idxk]]$means_)
+}</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+</div>
+<div id="plot-bic" class="section level3">
+<h3>Plot BIC</h3>
+<pre class="r"><code>par(mgp=c(2, 1, 0), pty = &quot;s&quot;)
+plot(klist,biclog, type = &quot;o&quot;, 
+     xlab = &quot;Number of clusters&quot;, ylab = &quot;BIC&quot;, lwd = 2,
+     cex      = 1.5,
+     cex.lab  = 1.2,
+     cex.axis = 1.2)</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>We select the GMM with three components (K=3).</p>
+<pre class="r"><code>K.selected &lt;- 3</code></pre>
+</div>
+</div>
+<div id="evaluate-clusters" class="section level2">
+<h2>Evaluate clusters</h2>
+<div id="density-estimation" class="section level3">
+<h3>Density estimation</h3>
+<p>Define a function ‘estkd’ for density estimation of original data and shuffled data</p>
+<pre class="r"><code>estkd &lt;- function(x, xmin, xmax, 
+                  n.shuffle = 1000, 
+                  p.threshold = 0.01, 
+                  density.threhold = 0.05,
+                  enrichment.threshold = 1.25) {
+  
+  xdim &lt;- ncol(x) # number of latent factors
+  N &lt;- nrow(x)
+  
+  # kernel density estiamtion of original data
+  
+  Hpi &lt;- ks::Hpi.diag(x = x, nstage = 2)
+  
+  k &lt;- ks::kde(x = x,verbose = TRUE, H = Hpi, 
+               xmin = xmin, 
+               xmax = xmax)
+  density.original &lt;- k$estimate
+  
+  # exceedance of original density
+  count_exceedance &lt;- array(0, dim(density.original))
+  
+  # shuffled data
+  cat(&quot;Density estimation for shuffled data...&quot;)
+  cat(&quot;\n 1/&quot;,n.shuffle, &quot;\n&quot;)
+  
+  for (idxs in 1:n.shuffle) {
+    if (idxs %% 100 == 0)
+      cat(idxs, &quot; &quot;)
+    
+    fsc.s.shuffeled &lt;- matrix(0,N,xdim)
+    
+    for (idx in 1:xdim)
+      fsc.s.shuffeled[,idx] &lt;- x[sample(nrow(x)),idx]
+    
+    k.shuffle &lt;- ks::kde(x = fsc.s.shuffeled, H = Hpi, 
+                         xmin = xmin, 
+                         xmax = xmax)
+    
+    count_exceedance &lt;- count_exceedance + 
+      as.numeric(density.original &lt; k.shuffle$estimate)
+    
+    if (idxs == 1)
+      density.sum &lt;- k.shuffle$estimate 
+    else
+      density.sum &lt;- density.sum + k.shuffle$estimate
+  }
+  
+  d.shuffle &lt;- density.sum / n.shuffle
+  
+  p.value &lt;- count_exceedance / n.shuffle
+  sig.region &lt;- (p.value &lt; p.threshold &amp; 
+                   density.original &gt; density.threhold &amp; 
+                   density.original / d.shuffle &gt; enrichment.threshold)
+  
+  storage.mode(sig.region) &lt;- &quot;numeric&quot;
+  
+  list(k = k, # output of kde for original data
+       d.original = density.original, 
+       count.exceedance = count_exceedance, 
+       d.shuffle = d.shuffle,
+       p.value = p.value,
+       sig.region = sig.region)
+}</code></pre>
+<p>Prepare for plot.</p>
+<pre class="r"><code>xmin &lt;- c(min(-5,min(df_data)),min(-5,min(df_data)))
+xmax &lt;- c(max(5,max(df_data)),max(4,max(df_data))) 
+
+# calculate density
+ret &lt;- estkd(df_data, xmin, xmax, 
+             n.shuffle = 1000, 
+             density.threhold = 0)</code></pre>
+<pre><code>## Density estimation for shuffled data...
+##  1/ 1000 
+## 100  200  300  400  500  600  700  800  900  1000</code></pre>
+<pre class="r"><code>zlim_max &lt;- max(ret$d.original)
+zlim_min &lt;- 0
+cex.main &lt;- 1.8
+
+kd &lt;- ret$k</code></pre>
+</div>
+<div id="scatter-plot-of-original-data-and-density-plot" class="section level3">
+<h3>Scatter plot of original data and density plot</h3>
+<pre class="r"><code>par(mfrow=c(1,2), pty = &quot;s&quot;)
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0))
+
+xlim &lt;- c(-4, 4)
+ylim &lt;- c(-4, 4)
+
+# Panel 1 (density)
+image(kd$estimate,
+      x = kd$eval.points[[1]],
+      y = kd$eval.points[[2]],
+      xlab = &quot;Dimension 1&quot;, 
+      ylab = &quot;Dimension 2&quot;,
+      xlim = xlim,
+      ylim = ylim, 
+      col = viridis::viridis(10),
+      cex.axis = 1, 
+      cex.lab = 1.2)
+
+# Panel 2 (scatter plot)
+plot(c(-4,4),c(-4,4),type=&quot;n&quot;,
+     xlab = &quot;Dimension 1&quot;, 
+     ylab = &quot;Dimension 2&quot;,
+     xlim = xlim,
+     ylim = ylim,  
+     cex.axis = 1, 
+     cex.lab = 1.2) 
+
+points(df_data$X1[1:nplot],
+       df_data$X2[1:nplot],
+       col = rgb(0.2,0.2,0.2,alpha=0.7), 
+       pch=&quot;.&quot;,
+       cex = 2)</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+</div>
+<div id="plot-densities-of-original-data-and-shuffled-data" class="section level3">
+<h3>Plot densities of original data and shuffled data</h3>
+<pre class="r"><code>par(mfrow=c(1,2), pty = &quot;s&quot;)
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0))
+
+log.density.original &lt;- log(pmax(kd$estimate,   0.00001))
+log.density.shuffle &lt;-  log(pmax(ret$d.shuffle, 0.00001))
+
+# Panel 1 (original data)
+image(log.density.original,
+      x = kd$eval.points[[1]],
+      y = kd$eval.points[[2]],
+      xlab = &quot;Dimension 1&quot;, ylab = &quot;Dimension 2&quot;,
+      col = viridis::viridis(20),
+      cex.axis = 1.2, cex.lab = 1.5,
+      cex.sub = 1.2)
+
+plot.cluster.center(gmm_list[[K.selected]]$means_)
+
+title(main = sprintf(&quot;Original data&quot;), 
+      cex = 1.2, cex.main = cex.main)
+
+# Panel 2 (shuffled data)
+image(log.density.shuffle,
+      x = kd$eval.points[[1]],
+      y = kd$eval.points[[2]],
+      xlab = &quot;Dimension 1&quot;, ylab = &quot;Dimension 2&quot;,
+      col = viridis::viridis(20),
+      cex.axis = 1.2, cex.lab = 1.5,
+      cex.sub = 1.2)
+title(main = sprintf(&quot;Null model&quot;),
+      cex = 1.5, cex.main = cex.main)</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-14-1.png" width="672" /></p>
+</div>
+<div id="plot-enrichment" class="section level3">
+<h3>Plot enrichment</h3>
+<pre class="r"><code>color.palette = colorRampPalette(
+  c(&quot;#0080ff&quot;,&quot;white&quot;,&quot;#ff8000&quot;))
+er &lt;- exp(log.density.original - log.density.shuffle)
+par(pty=&quot;s&quot;)
+image.plot(kd$eval.points[[1]],
+           kd$eval.points[[2]],
+           pmax(pmin(er,1.5),0.5),
+           col = color.palette(30),
+           zlim = c(0.5,1.5),
+           xlab=&quot;Factor 1&quot;, ylab=&quot;Factor 2&quot;,
+           cex.axis = 1.2, cex.lab = 1.2,cex.sub = 1.2
+           )
+plot.cluster.center(gmm_list[[K.selected]]$means_)
+title(main = sprintf(&quot;Enrichment&quot;),
+      cex = 1.8, cex.main = cex.main)</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-15-1.png" width="672" /></p>
+</div>
+<div id="p-value-and-enrichment-thresholded" class="section level3">
+<h3>p-value and enrichment thresholded</h3>
+<pre class="r"><code>par(pty=&quot;s&quot;)
+# p-value (p &lt; .01)
+image(kd$eval.points[[1]],
+      kd$eval.points[[2]],
+      z = (ret$p.value &lt; .01), 
+      col = c( rgb(0, 0, 0, alpha=0.0), 
+               rgb(0.2,0.2, 0.2, alpha=0.5)),
+      xlim = c(-5,5),
+      ylim = c(-5,4.5),
+      zlim = c(0,1),
+      xlab = &quot;Dimension 1&quot;, ylab = &quot;Dimension 2&quot;,
+      cex.axis = 1.5, cex.lab = 1.5
+)
+# enrichment (&gt; 1.25)
+image(kd$eval.points[[1]],
+           kd$eval.points[[2]],
+           z = exp(log.density.original - log.density.shuffle) &gt; 1.25, 
+           col = c( rgb(0, 0, 0, alpha=0.0), 
+                    rgb(0, 0, 0.8, alpha=0.5)), 
+           zlim = c(0,1),
+      add = T
+)
+plot.cluster.center(gmm_list[[K.selected]]$means_)</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+</div>
+<div id="plot-3d-density-of-gmm-and-and-scatter-disribution-with-gmm-contours" class="section level3">
+<h3>Plot 3d density of GMM and and scatter disribution with GMM contours</h3>
+<pre class="r"><code>par(mfrow=c(1,2), pty = &quot;s&quot;)
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0))
+
+x &lt;- seq(-4,4, by =0.2)
+y &lt;- seq(-4,4, by =0.2)
+grid &lt;- expand.grid(x1 = x, x2 = y)
+
+d &lt;- matrix(0, nrow = length(x),
+            ncol = length(y))
+
+for (idxc in 1:klist[K.selected]) {
+  d &lt;- d + gmm_list[[K.selected]]$weights_[idxc] * 
+    matrix(dmvnorm(
+      cbind(grid$x1, grid$x2),
+      mean = gmm_list[[K.selected]]$means_[idxc,],  
+      sigma = gmm_list[[K.selected]]$covariances_[idxc,,]),
+      nrow = length(x),
+      ncol = length(y))
+}
+persp(x, y, d, 
+      theta=30, 
+      phi=20, expand=0.5, 
+      ticktype=&quot;detailed&quot;,
+      ltheta = 120, shade = 0.75,
+      xlab = &quot;Dimension 1&quot;,
+      ylab = &quot;Dimension 2&quot;,
+      xlim = xlim,
+      ylim = ylim, 
+      zlab = &quot;&quot;, 
+      cex.axis = 0.8 
+      )  
+
+plot(df_data$X1[1:nplot],
+     df_data$X2[1:nplot],
+     &quot;p&quot;,
+     col = rgb(0.2,0.2,0.2,alpha=0.7), 
+     pch=&quot;.&quot;,
+     xlim = xlim,
+     ylim = ylim, 
+     xlab=&quot;Dimension 1&quot;, 
+     ylab=&quot;Dimension 2&quot;,
+     cex = 2, 
+     cex.axis = 1, 
+     cex.lab = 1.2)
+
+for (idxc in 1:klist[K.selected]) {
+  mixtools::ellipse(mu=gmm_list[[K.selected]]$means_[idxc,], 
+                    sigma=gmm_list[[K.selected]]$covariances_[idxc,,],
+                    alpha = 1-.6827, # 1 sigma  
+                    npoints = 250, col=&quot;red&quot;, lwd =2) 
+}
+plot.cluster.center(gmm_list[[K.selected]]$means_)</code></pre>
+<p><img src="simulation_cluster_case_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+</div>
+</div>
+</div>
+<div id="evaluate-each-cluter-center" class="section level1">
+<h1>Evaluate each cluter center</h1>
+<p>Define function for evaluate each cluter center</p>
+<pre class="r"><code># Input：
+#    x, # data matrix (factor scores) (respondent x dimension)
+#    c.center, cluster center matrix (cluster center x dimension)
+#    n.shuffle = 1000  number of shuffles
+#
+# Output: 
+#    $d.original # density of original data 
+#    $d.null     # mean density of null model
+#    $p.value    # p-value
+#    $enrichment # = d.original/d.null
+eval_component &lt;- function(x, c.center, n.shuffle = 1000) {
+  
+  xdim &lt;- ncol(x) 
+  N &lt;- nrow(x) 
+  n.component &lt;- nrow(c.center)
+  
+  p.value &lt;- numeric(n.component)
+  enrichment &lt;- numeric(n.component)
+  
+  cat(&quot;Bandwidth selection...\n&quot;)
+  Hpi &lt;- ks::Hpi.diag(x = x[1:min(N,1000),], 
+                      nstage = 2)
+  cat(&quot;kernel dinsity estimation for original data...\n&quot;)
+  k &lt;- ks::kde(x = x, H = Hpi,
+               eval.points = c.center,
+               binned = FALSE) 
+  density.original &lt;- k$estimate
+  
+  density.shuffle &lt;- matrix(0, n.shuffle, nrow(c.center))
+  
+  cat(&quot;kernel dinsity estimation for shuffled data...\n&quot;)
+  for (idxs in 1:n.shuffle) {
+    if (idxs %% 10 == 1) 
+      cat(&quot;=&quot;)
+    
+    sc_shuffeled &lt;- apply(x, MARGIN = 2, sample)
+    
+    k &lt;- ks::kde(x = sc_shuffeled, H = Hpi, 
+                 eval.points = c.center,
+                 binned = TRUE) # should be FALSE if the number of dimension &gt;= 4
+    
+    density.shuffle[idxs,] &lt;- k$estimate
+  }
+  cat(&quot;\n&quot;)
+  
+  density.null &lt;- colMeans(density.shuffle)
+  
+  for (idx in 1:n.component) {
+    
+    p.value[idx] &lt;- sum(density.original[idx] &lt; density.shuffle[,idx]) / n.shuffle
+    
+    enrichment[idx] &lt;- density.original[idx] /
+      density.null[idx]
+    
+    d.null.mean &lt;- mean(density.shuffle[,idx])
+  }
+  
+  list(d.original = density.original,
+       d.null = density.null, 
+       p.value = p.value,
+       enrichment = enrichment )
+}</code></pre>
+<p>Evaluate clusters (Gaussian components).</p>
+<pre class="r"><code>res_ec &lt;- eval_component(df_data,
+               gmm_list[[K.selected]]$means_)</code></pre>
+<pre><code>## Bandwidth selection...
+## kernel dinsity estimation for original data...
+## kernel dinsity estimation for shuffled data...
+## ====================================================================================================</code></pre>
+<pre class="r"><code># FALSE: not meaningful, TRUE: meaningful
+flg_meaningful &lt;- (res_ec$p.value &lt; 0.01 &amp; 
+                     res_ec$enrichment &gt; 1.25) 
+
+# 1: not meaningful,2: meaningful
+idx_meaningful &lt;- flg_meaningful + 1 </code></pre>
+<p>Calculate the fraction of samples classified into each cluster.</p>
+<pre class="r"><code>cluster_labels &lt;- apply(gmm_list[[K.selected]]$predict_proba(df_data),1,which.max)
+
+(tb &lt;- table(cluster_labels))</code></pre>
+<pre><code>## cluster_labels
+##     1     2     3 
+## 40292 29856 29852</code></pre>
+<pre class="r"><code>cat(&quot;Fraction of samples classified into one of the meaningful clusters:&quot;,
+    sum(tb[flg_meaningful])/sum(tb))</code></pre>
+<pre><code>## Fraction of samples classified into one of the meaningful clusters: 1</code></pre>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

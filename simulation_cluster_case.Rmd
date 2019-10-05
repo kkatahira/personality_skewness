@@ -1,16 +1,16 @@
 ---
-title: Illustration of how Gerlach's method works for skewed data
+title: Illustration of how Gerlach's method works for data with cluster structure
 output:
+  word_document: default
   html_document:
     df_data_print: paged
-  word_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning = FALSE, cache = TRUE)
 ```
 
-These R scripts perfom simulations ("Case with distribution skew") in Katahira et al. (Distribution of personality: types or skew?; Commentary: A robust data-driven approach identifies four personality types across four large data sets).
+These R scripts perfom simulations ("Case with three clusters") in Katahira et al. (Distribution of personality: types or skew?; Commentary: A robust data-driven approach identifies four personality types across four large data sets).
 
 ## Preparation
 
@@ -31,8 +31,6 @@ Also, please install Python to use scikit-learn library via reticulate library.
 
 ref: 
 https://rstudio.github.io/reticulate/  
-<!-- https://qiita.com/yamano357/items/9319d4b073d82a261ed8 (in Japanese)   -->
-
 
 ## Load library
 
@@ -46,81 +44,62 @@ library(fields) # for image.plot
 library(mvtnorm)
 ```
 
+# Case with three clusters
 
 ## Synthesize data
 
-First, samples are drawn from two independent skew-normal ditributions. 
+Samples are drawn from GMM with three components. 
 
 ```{r}
 set.seed(1)
 
-N <- 100000  # number of samples 
+n.sample <- 100000  # number of samples 
 
-# draw samples from univariate skew normal 
-x1 <- rsn(n = N, dp=c(-1, 1, 4))
-x2 <- rsn(n = N, dp=c(-1, 1, -4)) 
+# true parameters of GMM
+true_means <- list(c(0,2), 
+                   c(-1.5,-0.5), 
+                   c(1.5,-0.5)
+                   )
+true_sigmas <- list(diag(2)*0.5,
+                    diag(2)*0.5,
+                    diag(2)*0.5
+                    )
+true_pi <- c(0.4,0.3,0.3)
 
-dat <- cbind(x1,x2)
+dat <- matrix(0,nrow = n.sample, ncol = 2) 
+for (idx in 1:n.sample) {
+  idxk <- which.max(rmultinom(1,1,true_pi))
+  dat[idx,] <- rmvnorm(n = 1,
+                      mean = true_means[[idxk]],
+                      sigma = true_sigmas[[idxk]]  )
+}
+
+df_data <- data.frame(scale(dat))
 ```
 
-Plot the samples.
-
+Plot samples and marginals distribution.
 ```{r}
-par(pty = "s")
-
 nplot <- 5000 # number of samples to plot
 
-plot(c(-5,4),c(-5,3),type="n",ann=F)
-
-x1seq <- seq(-2, 3, length=201)
-x2seq <- seq(-5, 0, length=201)
-
-# draw marginals
-pd1 <- dsn(x1seq, dp=c(-1, 1, 4))
-pd2 <- dsn(x2seq, dp=c(-1, 1, -4))
-lines(x1seq, pd1 * 2 + 0.5,lwd = 2) 
-lines(-pd2 * 2 - 2.5, x2seq,lwd = 2)
-
-# scatter plot
-points(x1[1:nplot],
-       x2[1:nplot],
-       pch=".",cex = 2)
-```
-
-Rotate the samples by 45 degrees. 
-```{r}
-# rotation matrix
-theta <- -pi/4
-R <- matrix(c(cos(theta), -sin(theta), 
-              sin(theta), cos(theta)),
-            2,2,byrow = T)
-
-df_data <- data.frame(scale(dat) %*% t(R))
-```
-
-Plot the rotated data.
-
-```{r}
 par(pty = "s")
-plot(c(-5,6),c(-5,6),type="n",ann=F) 
-
-# draw marginals
-d1 <- density(df_data$X1,from = -4, to = 3)
-d2 <- density(df_data$X2,from = -4, to = 3)
-lines(d1$x, d1$y*3+4, 
-      xlim=c(-6,6), ylim=c(0,0.3),lwd = 2)
-lines(d2$y*3+4, d2$x, 
-      xlim=c(-6,6), ylim=c(0,0.3),lwd = 2)
-
-# scatter plot
+plot(c(-5,6),c(-5,6),type="n",ann=F)
 points(df_data$X1[1:nplot],
        df_data$X2[1:nplot],
        pch=".",cex = 2)
+
+d1 <- density(df_data$X1,from = -4, to = 3)
+d2 <- density(df_data$X1,from = -4, to = 3)
+lines(d1$x, d1$y*3+4,
+      xlim=c(-6,6), ylim=c(0,0.3),lwd = 2)
+lines(d2$y*3+4, d2$x,
+      xlim=c(-6,6), ylim=c(0,0.3),lwd = 2)
 ```
+
 
 Plot shuffuled data.
 
 ```{r}
+N <- n.sample
 xdim <- ncol(df_data)
 x.shuffeled <- matrix(0,N,xdim)
 
@@ -215,7 +194,7 @@ par(mfrow=c(3,3), pty = "s",
 
 for (idxk in 1:8) {
   plot(df_data$X1[1:nplot],
-       df_data$X2[1:nplot],"p", 
+       df_data$X2[1:nplot], "p", 
        pch = ".", 
        xlab="Dimension 1", 
        ylab="Dimension 2", 
@@ -244,10 +223,10 @@ plot(klist,biclog, type = "o",
 ```
 
 
-We select the GMM with seven components (K=7). 
+We select the GMM with three components (K=3). 
 
 ```{r}
-K.selected <- 7
+K.selected <- 3
 ```
 
 ## Evaluate clusters 
@@ -613,46 +592,4 @@ cat("Fraction of samples classified into one of the meaningful clusters:",
     sum(tb[flg_meaningful])/sum(tb))
 ```
 
-
-# Plot clusters with meaningful clusters being colored differently
-
-```{r message=TRUE, warning=FALSE, paged.print=TRUE}
-par(pty = "s")
-par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0))
-
-col.ellipse <- c("gray20",rgb(0.6,0.1,0.1,alpha=1))
-
-colpoint <- c(rgb(0.6,0.6,0.6,alpha=0.5),
-              rgb(0.9,0.2,0.2,alpha=0.5) # meaningful cluster
-              )
-
-plot(df_data$X1[1:nplot],
-     df_data$X2[1:nplot],
-     "p",
-     col = colpoint[idx_meaningful[cluster_labels[1:nplot]]], 
-     pch=".", bty="n", xaxt="n", yaxt="n",
-     xlab = "", ylab = "",
-     xlim = xlim, ylim = ylim, 
-     cex = 2, cex.axis = 1, cex.lab = 1.2)
-
-for (idxc in 1:klist[K.selected]) {
-  mixtools::ellipse(mu=gmm_list[[K.selected]]$means_[idxc,], 
-                    sigma=gmm_list[[K.selected]]$covariances_[idxc,,],
-                    alpha = 1-.6827, # 1 sigma  
-                    npoints = 250, col=col.ellipse[idx_meaningful[idxc]], lwd =2) 
-}
-
-plot.cluster.col <- function(cluster.center, col) {
-  idxk <- nrow(cluster.center)
-  for (idxc in 1:idxk) {
-    points(x = cluster.center[idxc,1], 
-           y = cluster.center[idxc,2], 
-           pch = 4, # "+"
-           cex = 1.5, 
-           col=col[[idxc]], lwd=2)
-  }
-}
-
-plot.cluster.col(gmm_list[[K.selected]]$means_, col.ellipse[idx_meaningful])
-```
 
